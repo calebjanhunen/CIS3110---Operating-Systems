@@ -21,12 +21,12 @@ int main(int argc, char **argv) {
     // printf("%ld \n", sizeof(fd));
     // printf("%ld \n", argc * sizeof(int));
 
-    int fd[argc - 1][2];
+    // int fd[argc - 1][2];
     pid_t child_pid;
 
     signal(SIGCHLD, sigHandler);
     for (int i = 0; i < argc - 1; i++) {
-        pipe(fd[i]);
+        // pipe(fd[i]);
         child_pid = fork();
         char *filename = argv[i + 1];
 
@@ -37,23 +37,19 @@ int main(int argc, char **argv) {
             //     close(fd[j][0]);
             //     close(fd[j][1]);
             // }
-            close(fd[i][0]); // close read side of pipe
+            // close(fd[i][0]); // close read side of pipe
 
             // write(fd[i][1], filename, strlen(filename) + 1);
 
             // sleep(10 + (2 * i));
-            close(fd[i][1]);
-            exit(0);
-        } else if (child_pid > 0) {
-            // printf("parent with id: %d\n", getpid());
-            // while (numDone < argc - 1) {
-            //     printf("wake up\n");
-            //     // sleep(5);
-            // }
-
-            // printf("all done");
-            // return 0;
+            sleep(1 + (2 * i));
+            // close(fd[i][1]);
+            exit(1);
         }
+    }
+    // printf("parent with id: %d\n", getpid());
+    while (numDone < argc - 1) {
+        pause();
     }
 
     // for (int i = 0; i < argc - 1; i++) {
@@ -67,14 +63,13 @@ int main(int argc, char **argv) {
 }
 
 void sigHandler(int sigNum) {
+    signal(SIGCHLD, sigHandler);
     int child_status;
-    int num = 0;
     pid_t pid;
-    while ((pid = waitpid(-1, &child_status, WNOHANG)) > 0) {
-        num++;
-        // printf("inside handler function, signum: %d\n", sigNum);
-        printf("%d: Caught SIGCHLD. PID: %d \n", num, pid);
-
-        numDone++;
+    // while ((pid = waitpid(-1, &child_status, WNOHANG)) > 0) {
+    pid = waitpid(-1, &child_status, WNOHANG);
+    printf("Caught SIGCHLD. Child %d terminated\n", pid);
+    if (child_status == 0) {
     }
+    numDone++;
 }
