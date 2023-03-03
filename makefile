@@ -7,4 +7,4 @@ a2: A2.c
 	$(CC) $(CFLAGS) -D_POSIX_C_SOURCE=200809L -o A2 A2.c
 
 clean:
-	rm A2
+	rm A2 *.hist

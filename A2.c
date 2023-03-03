@@ -10,6 +10,10 @@
 
 void sigHandler(int sigNum);
 
+// constants
+#define ALPHABET_SIZE 26
+
+// global variables
 int numChildrenTerminated = 0;
 int **fd;
 
@@ -36,8 +40,8 @@ int main(int argc, char **argv) {
 
         if (child_pid == 0) { // child process
             off_t fsize;
-            char *buf;
-            int histogramArr[26] = {0};
+            char *fileStr;
+            int histogramArr[ALPHABET_SIZE] = {0};
             printf("In child process (pid = %d), filename: %s\n", getpid(), filename);
             // close all pipes not being used
             for (int j = 0; j < i; j++) {
@@ -58,23 +62,22 @@ int main(int argc, char **argv) {
 
             // malloc size of file
             fsize = lseek(fileDesc, 0, SEEK_END);
-            buf = (char *)malloc(fsize);
+            fileStr = (char *)malloc(fsize);
             lseek(fileDesc, 0, SEEK_SET);
 
-            read(fileDesc, buf, fsize); // read file
+            read(fileDesc, fileStr, fsize); // read file
 
             // compute histogram array
             for (int fileIndex = 0; fileIndex < fsize; fileIndex++) {
-                char lowerCaseChar = tolower(buf[fileIndex]);
+                char lowerCaseChar = tolower(fileStr[fileIndex]);
                 if (97 <= lowerCaseChar && lowerCaseChar <= 122) {
                     int histIndex = lowerCaseChar - 97;
                     histogramArr[histIndex]++;
                 }
             }
-            for (int histIndex = 0; histIndex < 26; histIndex++) {
-                printf("%c: %d\n", histIndex + 97, histogramArr[histIndex]);
-            }
+
             write(fd[i][1], histogramArr, sizeof(histogramArr)); // write histogram array to pipe
+
             // cleaning up terminating child
             sleep(1 + (2 * i));
             close(fd[i][1]); // close write end of pipe
@@ -83,7 +86,7 @@ int main(int argc, char **argv) {
                 free(fd[i]);
             }
             free(fd);
-            free(buf);
+            free(fileStr);
             exit(0);
         }
     }
@@ -105,30 +108,40 @@ void sigHandler(int sigNum) {
     signal(SIGCHLD, sigHandler); // re-register signal handler
     int child_status;
     pid_t pid;
-    char filename[20]; // hardcode size?
+    char filename[20], fileStr[300]; // hardcode size?
     int fileDesc;
+
     pid = waitpid(-1, &child_status, WNOHANG);
     close(fd[numChildrenTerminated][1]); // close write end of pipe
     if (child_status == 0) {
         printf("%d: Caught SIGCHLD. Child %d terminated normally\n", numChildrenTerminated, pid);
-        // TODO: read from read end of pipe from child
-        int buf[26];
-        read(fd[numChildrenTerminated][0], buf, sizeof(buf));
+        int histArr[ALPHABET_SIZE];
+        read(fd[numChildrenTerminated][0], histArr, sizeof(histArr)); // read histogram array from pipe
 
-        // printf("histogram? %s \n", buf);
-        printf("**************AFTER READ FROM PIPE. CHILD: %d**************\n", pid);
-        for (int i = 0; i < 26; i++) {
-            printf("%c: %d\n", i + 97, buf[i]);
+        snprintf(filename, 20, "file%d.hist", pid);        // create file name
+        fileDesc = open(filename, O_RDWR | O_CREAT, 0640); // open/create file to write histogram to
+
+        // fileStr = malloc(sizeof(histArr) + ALPHABET_SIZE); // malloc string with sufficient space
+        // printf("strlen: %ld\n", strlen(fileStr));
+
+        // store histogram array (int) into string (char *) to write to file
+        int index = 0;
+        for (int i = 0; i < ALPHABET_SIZE; i++) {
+            // char temp[10];
+            index += snprintf(&fileStr[index], 300 - index, "%c %d\n", i + 97, histArr[i]);
+            // strcat(fileStr, temp);
         }
+        printf("%s \n", fileStr);
+        write(fileDesc, fileStr, strlen(fileStr)); // write file string (histogram array) to file
 
-        snprintf(filename, 20, "file%d.hist", pid);          // create file name
-        fileDesc = open(filename, O_WRONLY | O_CREAT, 0640); // create file to write histogram to
-        // write(fileDesc, )
+        close(fileDesc);
 
-        close(fd[numChildrenTerminated][0]); // close read end of pipe
-
+        // printf("FILE DESCRIPTOR %s, %d CLOSED \n", filename, fileDesc);
     } else {
         printf("Caught SIGCHLD. Child %d terminated with signal %d and exit status %d\n", pid, sigNum, WEXITSTATUS(child_status));
     }
+
+    close(fd[numChildrenTerminated][0]); // close read end of pipe
     numChildrenTerminated++;
+    // free(fileStr);
 }
