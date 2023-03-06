@@ -9,13 +9,17 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+// function definitions
 void sigHandler(int sigNum);
+int getIndex(int *arr, int element);
 
 // constants
 #define ALPHABET_SIZE 26
 
 // global variables
 int numChildrenTerminated = 0;
+int *child_pid;
+int child_pid_length;
 int **fd;
 
 int main(int argc, char **argv) {
@@ -24,19 +28,23 @@ int main(int argc, char **argv) {
         return -1;
     }
 
+    // mallocing child_pid array
+    child_pid_length = argc - 1;
+    child_pid = malloc((child_pid_length) * sizeof(int));
+
     // malloc pipe array
-    fd = malloc((argc - 1) * sizeof(int *));
-    for (int i = 0; i < argc - 1; i++) {
+    fd = malloc((child_pid_length) * sizeof(int *));
+    for (int i = 0; i < child_pid_length; i++) {
         fd[i] = malloc(2 * sizeof(int));
     }
 
     // register signal handler
     signal(SIGCHLD, sigHandler);
-    pid_t child_pid;
+    // pid_t child_pid;
 
-    for (int i = 0; i < argc - 1; i++) {
+    for (int i = 0; i < child_pid_length; i++) {
         pipe(fd[i]);
-        child_pid = fork();
+        child_pid[i] = fork();
 
         /*
         TODO:
@@ -50,20 +58,20 @@ int main(int argc, char **argv) {
         The child process 0 (the first fork) would be given file1.txt, child 1 would be sent SIGINT,
         and child 2 would be given file2.txt
         */
-        if (strcmp(argv[i + 1], "SIG") == 0 && child_pid > 0) {
-            printf("childpid: %d \n", child_pid);
-            kill(child_pid, SIGINT);
+        if (strcmp(argv[i + 1], "SIG") == 0 && child_pid[i] > 0) {
+            kill(child_pid[i], SIGINT);
         }
 
         char *filename = argv[i + 1];
 
-        if (child_pid < 0) {
+        if (child_pid[i] < 0) {
             printf("Could not create child process.\n");
-        } else if (child_pid == 0) { // child process
+        } else if (child_pid[i] == 0) { // child process
             off_t fsize;
             char *fileStr;
             int histogramArr[ALPHABET_SIZE] = {0};
             printf("In child process (pid = %d), filename: %s\n", getpid(), filename);
+
             // close all pipes not being used
             for (int j = 0; j < i; j++) {
                 close(fd[j][0]);
@@ -80,10 +88,11 @@ int main(int argc, char **argv) {
                 close(fd[i][1]); // close write side of pipe
 
                 // free pipe array
-                for (int i = 0; i < argc - 1; i++) {
+                for (int i = 0; i < child_pid_length; i++) {
                     free(fd[i]);
                 }
                 free(fd);
+                free(child_pid);
                 exit(1);
             }
 
@@ -111,25 +120,29 @@ int main(int argc, char **argv) {
             close(fileDesc); // close file descriptor
 
             // free pipe array
-            for (int i = 0; i < argc - 1; i++) {
+            for (int i = 0; i < child_pid_length; i++) {
                 free(fd[i]);
             }
             free(fd);
             free(fileStr);
+            free(child_pid);
             exit(0);
         }
     }
     /*********************PARENT PROCESS**************************/
 
     // wait for all children to terminate before exiting
-    while (numChildrenTerminated < argc - 1) {
+    while (numChildrenTerminated < child_pid_length) {
         pause();
     }
-
-    for (int i = 0; i < argc - 1; i++) {
+    // for (int i = 0; i < child_pid_length; i++) {
+    //     printf("%d \n", child_pid[i]);
+    // }
+    for (int i = 0; i < child_pid_length; i++) {
         free(fd[i]);
     }
     free(fd);
+    free(child_pid);
     return 0;
 }
 
@@ -140,14 +153,16 @@ void sigHandler(int sigNum) {
     int fileDesc;
 
     pid = waitpid(-1, &child_status, WNOHANG);
-    close(fd[numChildrenTerminated][1]); // close write end of pipe
-    if (WIFSIGNALED(child_status)) {
-        printf("%d: Child process %d was terminated by signal %s\n", numChildrenTerminated, pid, strsignal(WTERMSIG(child_status)));
+    int pidIndex = getIndex(child_pid, pid);
+    close(fd[pidIndex][1]); // close write end of pipe
+
+    if (WIFSIGNALED(child_status) || WTERMSIG(child_status) != 0) { // child terminated by signal or error
+        printf("Child process %d was terminated by signal %s\n", pid, strsignal(WTERMSIG(child_status)));
     }
-    if (WTERMSIG(child_status) == 0) {
-        printf("%d: Caught SIGCHLD. Child %d terminated normally\n", numChildrenTerminated, pid);
+    if (child_status == 0) {
+        printf("Caught SIGCHLD. Child %d terminated normally\n", pid);
         int histArr[ALPHABET_SIZE];
-        read(fd[numChildrenTerminated][0], histArr, sizeof(histArr)); // read histogram array from pipe
+        read(fd[pidIndex][0], histArr, sizeof(histArr)); // read histogram array from pipe
 
         int pidDigitCount = (int)((log10(pid)) + 1);              // calculate number of digits in each pid value
         char filename[4 + pidDigitCount + 6];                     // create filename string large enough for each pid value ("file" + pid_num + ".hist\0")
@@ -178,6 +193,16 @@ void sigHandler(int sigNum) {
         // printf("Caught SIGCHLD. Child %d terminated with signal %d and exit status %d\n", pid, sigNum, WEXITSTATUS(child_status));
     }
 
-    close(fd[numChildrenTerminated][0]); // close read end of pipe
+    close(fd[pidIndex][0]); // close read end of pipe
     numChildrenTerminated++;
+}
+
+int getIndex(int *arr, int element) {
+    for (int i = 0; i < child_pid_length; i++) {
+        if (arr[i] == element) {
+            return i;
+        }
+    }
+
+    return -1;
 }
