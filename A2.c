@@ -70,7 +70,7 @@ int main(int argc, char **argv) {
             off_t fsize;
             char *fileStr;
             int histogramArr[ALPHABET_SIZE] = {0};
-            printf("In child process (pid = %d), filename: %s\n", getpid(), filename);
+            // printf("In child process (pid = %d), filename: %s\n", getpid(), filename);
 
             // close all pipes not being used
             for (int j = 0; j < i; j++) {
@@ -135,9 +135,7 @@ int main(int argc, char **argv) {
     while (numChildrenTerminated < child_pid_length) {
         pause();
     }
-    // for (int i = 0; i < child_pid_length; i++) {
-    //     printf("%d \n", child_pid[i]);
-    // }
+
     for (int i = 0; i < child_pid_length; i++) {
         free(fd[i]);
     }
@@ -153,6 +151,7 @@ void sigHandler(int sigNum) {
     int fileDesc;
 
     pid = waitpid(-1, &child_status, WNOHANG);
+    printf("Caught SIGCHLD from child %d\n", pid);
     int pidIndex = getIndex(child_pid, pid);
     close(fd[pidIndex][1]); // close write end of pipe
 
@@ -160,7 +159,6 @@ void sigHandler(int sigNum) {
         printf("Child process %d was terminated by signal %s\n", pid, strsignal(WTERMSIG(child_status)));
     }
     if (child_status == 0) {
-        printf("Caught SIGCHLD. Child %d terminated normally\n", pid);
         int histArr[ALPHABET_SIZE];
         read(fd[pidIndex][0], histArr, sizeof(histArr)); // read histogram array from pipe
 

@@ -8,3 +8,5 @@ a2: A2.c
 
 clean:
 	rm A2 *.hist
+hist:
+	rm *.hist
