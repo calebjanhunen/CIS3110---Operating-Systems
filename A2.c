@@ -67,10 +67,11 @@ int main(int argc, char **argv) {
         if (child_pid[i] < 0) {
             printf("Could not create child process.\n");
         } else if (child_pid[i] == 0) { // child process
+            sleep(2);
             off_t fsize;
             char *fileStr;
             int histogramArr[ALPHABET_SIZE] = {0};
-            // printf("In child process (pid = %d), filename: %s\n", getpid(), filename);
+            printf("In child process (pid = %d), filename: %s\n", getpid(), filename);
 
             // close all pipes not being used
             for (int j = 0; j < i; j++) {
@@ -151,13 +152,13 @@ void sigHandler(int sigNum) {
     int fileDesc;
 
     pid = waitpid(-1, &child_status, WNOHANG);
-    printf("Caught SIGCHLD from child %d\n", pid);
     int pidIndex = getIndex(child_pid, pid);
     close(fd[pidIndex][1]); // close write end of pipe
 
-    if (WIFSIGNALED(child_status) || WTERMSIG(child_status) != 0) { // child terminated by signal or error
-        printf("Child process %d was terminated by signal %s\n", pid, strsignal(WTERMSIG(child_status)));
-    }
+    // if (WIFSIGNALED(child_status) || WTERMSIG(child_status) != 0) { // child terminated by signal or error
+    //     printf("Child process %d was terminated by signal %s\n", pid, strsignal(WTERMSIG(child_status)));
+    // }
+    printf("Caught SIGCHLD from child %d, with signal: %d\n", pid, child_status);
     if (child_status == 0) {
         int histArr[ALPHABET_SIZE];
         read(fd[pidIndex][0], histArr, sizeof(histArr)); // read histogram array from pipe
