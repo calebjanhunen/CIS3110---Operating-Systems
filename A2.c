@@ -45,6 +45,7 @@ int main(int argc, char **argv) {
     for (int i = 0; i < child_pid_length; i++) {
         pipe(fd[i]);
         child_pid[i] = fork();
+        char *filename;
 
         /*
         TODO:
@@ -58,11 +59,10 @@ int main(int argc, char **argv) {
         The child process 0 (the first fork) would be given file1.txt, child 1 would be sent SIGINT,
         and child 2 would be given file2.txt
         */
+        filename = argv[i + 1];
         if (strcmp(argv[i + 1], "SIG") == 0 && child_pid[i] > 0) {
             kill(child_pid[i], SIGINT);
         }
-
-        char *filename = argv[i + 1];
 
         if (child_pid[i] < 0) {
             printf("Could not create child process.\n");
@@ -177,19 +177,17 @@ void sigHandler(int sigNum) {
         }
 
         close(fileDesc);
-
-    } else {
-        /*TODO:
-        - If the child terminated abnormally - either exited with a value other that 0, or was killed
-          by a signal - the signal handler does not read the data, since there's nothing to read.
-            - The examples discussed in class (and posted on the course website) showed you
-              how to get the exit status of a process.
-            - The macros WIFSIGNALED and WTERMSIG will help you figure out if the child was
-              killed by a signal (and which one), and the function strsignal will provide the name
-              of the signal given its code.
-        */
-        // printf("Caught SIGCHLD. Child %d terminated with signal %d and exit status %d\n", pid, sigNum, WEXITSTATUS(child_status));
     }
+    /*TODO:
+    - If the child terminated abnormally - either exited with a value other that 0, or was killed
+      by a signal - the signal handler does not read the data, since there's nothing to read.
+        - The examples discussed in class (and posted on the course website) showed you
+          how to get the exit status of a process.
+        - The macros WIFSIGNALED and WTERMSIG will help you figure out if the child was
+          killed by a signal (and which one), and the function strsignal will provide the name
+          of the signal given its code.
+    */
+    // printf("Caught SIGCHLD. Child %d terminated with signal %d and exit status %d\n", pid, sigNum, WEXITSTATUS(child_status));
 
     close(fd[pidIndex][0]); // close read end of pipe
     numChildrenTerminated++;
