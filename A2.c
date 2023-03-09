@@ -62,7 +62,7 @@ int main(int argc, char **argv) {
 
             // if file does not exist
             if (fileDesc < 0) {
-                sleep(1 + (2 * i));
+                sleep(10 + (2 * i));
                 printf("file, %s, could not be open \n", filename);
                 close(fd[i][1]); // close write side of pipe
                 exit(1);
@@ -87,7 +87,7 @@ int main(int argc, char **argv) {
             write(fd[i][1], histogramArr, sizeof(histogramArr)); // write histogram array to pipe
 
             // cleaning up terminating child
-            sleep(1 + (2 * i));
+            sleep(10 + (2 * i));
             close(fd[i][1]); // close write end of pipe
             close(fileDesc); // close file descriptor
             free(fileStr);

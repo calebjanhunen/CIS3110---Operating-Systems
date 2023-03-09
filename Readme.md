@@ -1,1 +1,2 @@
-repository for assignments
+Compilation instructions:
+    make A2
