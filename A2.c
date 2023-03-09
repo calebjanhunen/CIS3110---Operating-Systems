@@ -18,48 +18,26 @@ int getIndex(int *arr, int element);
 
 // global variables
 int numChildrenTerminated = 0;
-int *child_pid;
+int child_pid[100];
 int child_pid_length;
-int **fd;
+int fd[100][2];
 
 int main(int argc, char **argv) {
     if (argc == 1) {
         printf("Error: No files were provided. \n");
         return -1;
     }
-
-    // mallocing child_pid array
     child_pid_length = argc - 1;
-    child_pid = malloc((child_pid_length) * sizeof(int));
-
-    // malloc pipe array
-    fd = malloc((child_pid_length) * sizeof(int *));
-    for (int i = 0; i < child_pid_length; i++) {
-        fd[i] = malloc(2 * sizeof(int));
-    }
 
     // register signal handler
     signal(SIGCHLD, sigHandler);
-    // pid_t child_pid;
 
     for (int i = 0; i < child_pid_length; i++) {
         pipe(fd[i]);
         child_pid[i] = fork();
         char *filename;
-
-        /*
-        TODO:
-        The command line arguments passed to the parent process are treated as file names - with
-        one exception. If a command line argument is the string SIG, the corresponding child will not
-        receive the filename - instead, the parent will send SIGINT to it using the kill function. The
-        child does not need to catch it - it should just terminate, using the default SIGINT disposition.
-
-        For example, given the command:
-        A2 file1.txt SIG file2.txt
-        The child process 0 (the first fork) would be given file1.txt, child 1 would be sent SIGINT,
-        and child 2 would be given file2.txt
-        */
         filename = argv[i + 1];
+
         if (strcmp(argv[i + 1], "SIG") == 0 && child_pid[i] > 0) {
             kill(child_pid[i], SIGINT);
         }
@@ -67,11 +45,11 @@ int main(int argc, char **argv) {
         if (child_pid[i] < 0) {
             printf("Could not create child process.\n");
         } else if (child_pid[i] == 0) { // child process
-            sleep(2);
+            printf("In child process (pid = %d), filename: %s\n", getpid(), filename);
+            sleep(1);
             off_t fsize;
             char *fileStr;
             int histogramArr[ALPHABET_SIZE] = {0};
-            printf("In child process (pid = %d), filename: %s\n", getpid(), filename);
 
             // close all pipes not being used
             for (int j = 0; j < i; j++) {
@@ -87,13 +65,6 @@ int main(int argc, char **argv) {
                 sleep(1 + (2 * i));
                 printf("file, %s, could not be open \n", filename);
                 close(fd[i][1]); // close write side of pipe
-
-                // free pipe array
-                for (int i = 0; i < child_pid_length; i++) {
-                    free(fd[i]);
-                }
-                free(fd);
-                free(child_pid);
                 exit(1);
             }
 
@@ -119,14 +90,7 @@ int main(int argc, char **argv) {
             sleep(1 + (2 * i));
             close(fd[i][1]); // close write end of pipe
             close(fileDesc); // close file descriptor
-
-            // free pipe array
-            for (int i = 0; i < child_pid_length; i++) {
-                free(fd[i]);
-            }
-            free(fd);
             free(fileStr);
-            free(child_pid);
             exit(0);
         }
     }
@@ -136,12 +100,6 @@ int main(int argc, char **argv) {
     while (numChildrenTerminated < child_pid_length) {
         pause();
     }
-
-    for (int i = 0; i < child_pid_length; i++) {
-        free(fd[i]);
-    }
-    free(fd);
-    free(child_pid);
     return 0;
 }
 
@@ -155,10 +113,7 @@ void sigHandler(int sigNum) {
     int pidIndex = getIndex(child_pid, pid);
     close(fd[pidIndex][1]); // close write end of pipe
 
-    // if (WIFSIGNALED(child_status) || WTERMSIG(child_status) != 0) { // child terminated by signal or error
-    //     printf("Child process %d was terminated by signal %s\n", pid, strsignal(WTERMSIG(child_status)));
-    // }
-    printf("Caught SIGCHLD from child %d, with signal: %d\n", pid, child_status);
+    printf("Caught SIGCHLD from child %d: ", pid);
     if (child_status == 0) {
         int histArr[ALPHABET_SIZE];
         read(fd[pidIndex][0], histArr, sizeof(histArr)); // read histogram array from pipe
@@ -176,19 +131,11 @@ void sigHandler(int sigNum) {
             snprintf(fileStr, sizeof(fileStr), "%c %d\n", i + 97, histArr[i]);
             write(fileDesc, fileStr, strlen(fileStr)); // write file string (histogram array) to file
         }
-
+        printf("Child Terminated normally.\n");
         close(fileDesc);
+    } else {
+        printf("Child terminated with signal: %s \n", strsignal(WTERMSIG(child_status)));
     }
-    /*TODO:
-    - If the child terminated abnormally - either exited with a value other that 0, or was killed
-      by a signal - the signal handler does not read the data, since there's nothing to read.
-        - The examples discussed in class (and posted on the course website) showed you
-          how to get the exit status of a process.
-        - The macros WIFSIGNALED and WTERMSIG will help you figure out if the child was
-          killed by a signal (and which one), and the function strsignal will provide the name
-          of the signal given its code.
-    */
-    // printf("Caught SIGCHLD. Child %d terminated with signal %d and exit status %d\n", pid, sigNum, WEXITSTATUS(child_status));
 
     close(fd[pidIndex][0]); // close read end of pipe
     numChildrenTerminated++;
